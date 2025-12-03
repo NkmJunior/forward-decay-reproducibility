@@ -1,0 +1,56 @@
+services:
+  # 1. The Redpanda Broker (Kafka)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --check=false
+      # Internal listener for Docker containers (port 9092)
+      # External listener for your host machine (port 19092)
+      - --kafka-addr PLAIN://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr PLAIN://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    ports:
+      - "19092:19092"
+      - "8081:8081"
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy'"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 2. The Traffic Producer Script
+  producer:
+    build: .
+    container_name: traffic-producer
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      # Tell the script to look for the broker at 'redpanda:9092'
+      - KAFKA_BROKER_ADDRESS=redpanda:9092
+    volumes:
+      # Mount your code so you can edit it without rebuilding
+      - ./:/app
+    command: ["python3", "producer.py"]
+
+  # 3. The Forward Decay Processor Script
+  processor:
+    build: .
+    container_name: decay-processor
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      - KAFKA_BROKER_ADDRESS=redpanda:9092
+    volumes:
+      - ./:/app
+    command: ["python3", "processor.py"]
