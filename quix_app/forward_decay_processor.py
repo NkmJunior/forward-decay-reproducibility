@@ -1,5 +1,5 @@
 from quixstreams import Application
-from quix_app.utils.ForwardDecay import ForwardDecay
+from utils.ForwardDecay import ForwardDecay
 
 fd = ForwardDecay(lambda_=0.01)
 

@@ -13,9 +13,13 @@ def generate_zipf_item(num_items, alpha):
     return int(sample)
 
 def run_realtime_producer():
-    app = Application(broker_address="localhost:9092")
-    topic = app.topic("traffic")
+    # 1. Connect to the broker
+    app = Application(broker_address="127.0.0.1:9092")
+    
+    # 2. Define the topic with explicit JSON serialization
+    topic = app.topic("traffic", value_serializer="json")
 
+    # 3. Create the producer
     producer = app.get_producer()
 
     print(f"[Producer] Streaming at {RATE} packets/s")
@@ -32,7 +36,20 @@ def run_realtime_producer():
             "packet_size": packet_size
         }
 
-        producer.produce(topic.name, value=message)
+        # 4. Serialize the dictionary to bytes using the topic's configuration
+        # This returns an object with .value (bytes) and .key (bytes)
+        kafka_msg = topic.serialize(key=str(item_id), value=message)
+
+        # 5. Produce the BYTES, not the dictionary
+        producer.produce(
+            topic.name, 
+            value=kafka_msg.value, 
+            key=kafka_msg.key
+        )
+        
+        # Optional: Poll to handle delivery callbacks and keep the internal queue healthy
+        producer.poll(0)
+        
         time.sleep(delay)
 
 if __name__ == "__main__":
