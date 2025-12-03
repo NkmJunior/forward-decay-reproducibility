@@ -51,6 +51,14 @@ services:
         condition: service_healthy
     environment:
       - KAFKA_BROKER_ADDRESS=redpanda:9092
+      # Decay algorithm type: exponential, polynomial, sliding
+      - DECAY_TYPE=exponential
+      # For exponential/sliding decay
+      - DECAY_RATE=0.001
+      # For polynomial decay (degree)
+      - POLY_DEGREE=2.0
+      # For sliding window (seconds)
+      - WINDOW_SIZE=60.0
     volumes:
       - ./:/app
     command: ["python3", "processor.py"]

@@ -17,7 +17,6 @@ PRODUCER_CONFIG = {
     "linger.ms": 5,           # Buffer for 5ms to enable batching
     "batch.size": 16384,      # 16KB max batch size
     "compression.type": "lz4",# Low-overhead compression
-    "acks": "1"               # Leader ack only (faster than 'all')
 }
 
 def main():
