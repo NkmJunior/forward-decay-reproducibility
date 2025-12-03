@@ -1,26 +1,38 @@
 from quixstreams import Application
-from quix_app.utils.SlidingWindow import SlidingWindow
+from utils.SlidingWindow import SlidingWindow
 
+# Initialize Algorithm
 sw = SlidingWindow(window_size=10)
+message_count = 0
 
-def process_message(msg):
-    ts = msg["timestamp"]
-    item = msg["item_id"]
+def process_message(row):
+    global message_count
+    
+    ts = row["timestamp"]
+    item = row["item_id"]
 
     sw.update(item, ts)
-    freq = sw.query(item, ts)
-
-    print(f"[SW] item={item} freq={freq}")
+    
+    message_count += 1
+    if message_count % 5000 == 0:
+        freq = sw.query(item, ts)
+        print(f"[SW] Processed {message_count} packets. Current item: {item}, Freq: {freq:.4f}")
 
 def run_sliding_window_processor():
-    app = Application(broker_address="localhost:9092")
-    topic = app.topic("traffic")
+    # Fix: Use 127.0.0.1 and unique consumer group
+    app = Application(
+        broker_address="127.0.0.1:9092",
+        consumer_group="sliding-window-group",
+        auto_offset_reset="earliest"
+    )
 
-    consumer = app.get_consumer()
-    consumer.subscribe([topic.name], callback=process_message)
+    topic = app.topic("traffic", value_deserializer="json")
 
-    print("Sliding Window processor running...")
-    app.run()
+    sdf = app.dataframe(topic)
+    sdf = sdf.update(process_message)
+
+    print("[Sliding Window] Running... (Printing every 5000 packets)")
+    app.run(sdf)
 
 if __name__ == "__main__":
     run_sliding_window_processor()
