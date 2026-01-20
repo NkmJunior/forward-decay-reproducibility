@@ -1,5 +1,6 @@
 from quixstreams import Application
-# Ensure this import matches your file structure. 
+import os
+# Ensure this import matches your file structure.
 # If running "python quix_app/forward_decay_processor.py", this is correct:
 from utils.ForwardDecay import ForwardDecay 
 
@@ -22,10 +23,13 @@ def process_message(row):
     print(f"[FD] item={item}, freq={freq:.4f}")
 
 def run_forward_processor():
-    # 1. Use 127.0.0.1 to match your producer and avoid Windows localhost issues
+    # Get broker address from environment or default to localhost
+    broker_address = os.getenv("KAFKA_BROKER_ADDRESS", "127.0.0.1:9092")
+
+    # 1. Use broker_address from environment variable
     # 2. auto_offset_reset="earliest" ensures you read data sent before the processor started
     app = Application(
-        broker_address="127.0.0.1:9092", 
+        broker_address=broker_address,
         consumer_group="forward-decay-group",
         auto_offset_reset="earliest"
     )

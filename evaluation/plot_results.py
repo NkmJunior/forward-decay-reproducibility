@@ -1,20 +1,21 @@
 import json
 import os
+import sys
 import matplotlib.pyplot as plt
-import numpy as np
 
 
-RESULTS_PATH = "evaluation/results.json"
-OUTPUT_DIR = "evaluation/plots_advanced/"
+# Default paths
+DEFAULT_RESULTS_PATH = "evaluation/results.json"
+DEFAULT_OUTPUT_DIR = "evaluation/plots_advanced/"
 
 
-def ensure_output_dir():
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
+def ensure_output_dir(output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
 
-def load_results():
-    with open(RESULTS_PATH, "r") as f:
+def load_results(results_path):
+    with open(results_path, "r") as f:
         return json.load(f)
 
 
@@ -22,11 +23,12 @@ def load_results():
 # PLOTTING FUNCTIONS
 # ---------------------------------------------------------
 
-def plot_relative_error(results):
+def plot_relative_error(results, output_dir):
     ts = results["timestamps"]
-    fd = results["fd_error"]
-    bd = results["bd_error"]
-    sw = results["sw_error"]
+    # Handle both offline (with fd_error) and realtime (without fd_error) results
+    fd = results.get("fd_error", results.get("fd_avg_error", []))
+    bd = results.get("bd_error", results.get("bd_avg_error", []))
+    sw = results.get("sw_error", results.get("sw_avg_error", []))
 
     plt.figure(figsize=(10, 6))
     plt.plot(ts, fd, label="Forward Decay", linewidth=2)
@@ -38,11 +40,11 @@ def plot_relative_error(results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "relative_error.png")
+    plt.savefig(output_dir + "relative_error.png")
     plt.close()
 
 
-def plot_avg_relative_error(results):
+def plot_avg_relative_error(results, output_dir):
     ts = results["timestamps"]
     fd = results["fd_avg_error"]
     bd = results["bd_avg_error"]
@@ -58,11 +60,11 @@ def plot_avg_relative_error(results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "average_relative_error.png")
+    plt.savefig(output_dir + "average_relative_error.png")
     plt.close()
 
 
-def plot_topk_accuracy(results):
+def plot_topk_accuracy(results, output_dir):
     ts = results["timestamps"]
     fd = results["topk_accuracy_fd"]
     bd = results["topk_accuracy_bd"]
@@ -78,11 +80,11 @@ def plot_topk_accuracy(results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "topk_accuracy.png")
+    plt.savefig(output_dir + "topk_accuracy.png")
     plt.close()
 
 
-def plot_memory_usage(results):
+def plot_memory_usage(results, output_dir):
     ts = results["timestamps"]
     fd = results["memory_fd"]
     bd = results["memory_bd"]
@@ -98,11 +100,11 @@ def plot_memory_usage(results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "memory_usage.png")
+    plt.savefig(output_dir + "memory_usage.png")
     plt.close()
 
 
-def plot_combined_error(results):
+def plot_combined_error(results, output_dir):
     """All 3 average errors in one graph."""
     ts = results["timestamps"]
 
@@ -116,18 +118,19 @@ def plot_combined_error(results):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "combined_errors.png")
+    plt.savefig(output_dir + "combined_errors.png")
     plt.close()
 
 
 # OPTIONAL EXTRA PLOTS
-def plot_error_boxplot(results):
+def plot_error_boxplot(results, output_dir):
     """Distribution of errors across the experiment."""
-    data = [
-        results["fd_error"],
-        results["bd_error"],
-        results["sw_error"],
-    ]
+    # Use fd_error if available (offline), otherwise use fd_avg_error (realtime)
+    fd_data = results.get("fd_error", results.get("fd_avg_error", []))
+    bd_data = results.get("bd_error", results.get("bd_avg_error", []))
+    sw_data = results.get("sw_error", results.get("sw_avg_error", []))
+
+    data = [fd_data, bd_data, sw_data]
 
     plt.figure(figsize=(8, 6))
     plt.boxplot(data, labels=["FD", "BD", "SW"])
@@ -135,38 +138,59 @@ def plot_error_boxplot(results):
     plt.ylabel("Relative Error")
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "error_boxplot.png")
+    plt.savefig(output_dir + "error_boxplot.png")
     plt.close()
 
 
 # ---------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------
-def main():
-    print("Loading results...")
-    results = load_results()
-    ensure_output_dir()
+def main(results_path=None, output_dir=None):
+    """Generate plots from evaluation results.
+
+    Args:
+        results_path: Path to results JSON file (default: evaluation/results.json)
+        output_dir: Output directory for plots (default: evaluation/plots_advanced/)
+    """
+    if results_path is None:
+        results_path = DEFAULT_RESULTS_PATH
+    if output_dir is None:
+        output_dir = DEFAULT_OUTPUT_DIR
+
+    # Ensure output dir ends with /
+    if not output_dir.endswith('/'):
+        output_dir += '/'
+
+    print(f"Loading results from {results_path}...")
+    results = load_results(results_path)
+    ensure_output_dir(output_dir)
 
     print("Plotting relative error...")
-    plot_relative_error(results)
+    plot_relative_error(results, output_dir)
 
     print("Plotting average error...")
-    plot_avg_relative_error(results)
+    plot_avg_relative_error(results, output_dir)
 
     print("Plotting top-k accuracy...")
-    plot_topk_accuracy(results)
+    plot_topk_accuracy(results, output_dir)
 
     print("Plotting memory usage...")
-    plot_memory_usage(results)
+    plot_memory_usage(results, output_dir)
 
     print("Plotting combined errors...")
-    plot_combined_error(results)
+    plot_combined_error(results, output_dir)
 
     print("Plotting boxplot...")
-    plot_error_boxplot(results)
+    plot_error_boxplot(results, output_dir)
 
-    print(f"\nAdvanced plots saved in {OUTPUT_DIR}")
+    print(f"\n✓ Plots saved in {output_dir}")
 
 
 if __name__ == "__main__":
-    main()
+    # Support command-line arguments
+    if len(sys.argv) > 1:
+        results_path = sys.argv[1]
+        output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+        main(results_path, output_dir)
+    else:
+        main()

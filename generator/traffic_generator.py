@@ -1,21 +1,18 @@
 import csv
 import time
+import sys
+import os
 import numpy as np
 from datetime import datetime, timedelta
 
-import os
-
+# Add parent directory to path for imports
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BASE_DIR)
+sys.path.insert(0, ROOT_DIR)
+
+from utils.data_generator import generate_zipf_items
+
 OUTPUT_PATH = os.path.join(BASE_DIR, "..", "data", "generated_stream.csv")
-
-
-def generate_zipf_items(num_items, alpha, size):
-    """Generate a Zipf-distributed list of item IDs."""
-    
-    zipf_samples = np.random.zipf(alpha, size)
-    # Replace values > num_items
-    zipf_samples = np.minimum(zipf_samples, num_items)
-    return zipf_samples
 
 
 def traffic_generator(
@@ -46,7 +43,7 @@ def traffic_generator(
         for i in range(total_packets):
             timestamp = start_time + timedelta(seconds=i / rate)
             item_id = int(items[i])
-            packet_size = np.random.randint(40, 1500)  # bytes
+            packet_size = int(np.random.randint(40, 1500))  # bytes
 
             writer.writerow([timestamp.timestamp(), item_id, packet_size])
 

@@ -27,3 +27,36 @@ services:
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  producer:
+    build: .
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER_ADDRESS=kafka:29092
+      - PRODUCER_DURATION=30
+    command: python quix_app/producer.py
+    restart: unless-stopped
+
+  processor:
+    build: .
+    depends_on:
+      - kafka
+      - producer
+    environment:
+      - KAFKA_BROKER_ADDRESS=kafka:29092
+    command: python quix_app/forward_decay_processor.py
+    restart: unless-stopped
+
+  evaluator:
+    build: .
+    depends_on:
+      - kafka
+      - producer
+    environment:
+      - KAFKA_BROKER_ADDRESS=kafka:29092
+      - EVAL_OUTPUT=/app/evaluation/realtime_results.json
+    command: python quix_app/realtime_evaluator.py
+    restart: unless-stopped
+    volumes:
+      - ./evaluation:/app/evaluation
