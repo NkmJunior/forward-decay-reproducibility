@@ -94,9 +94,35 @@ forward-decay-reproducibility/
 
 ### Running Experiments
 
+#### Offline Evaluation
+
 1. **Generate synthetic traffic data**
    ```bash
    python -m generator.traffic_generator
+   ```
+   This generates 300,000 packets over 30 seconds in `data/generated_stream.csv`.
+
+2. **Run offline experiments**
+   ```bash
+   python -m evaluation.run_experiments
+   ```
+   This processes the CSV data and saves results to `evaluation/results.json`.
+
+3. **Generate plots**
+   ```bash
+   # Performance metrics (6 plots: error, accuracy, memory, etc.)
+   python -m evaluation.plot_results
+
+   # System costs (3 plots: CPU load, query cost, memory)
+   python -m evaluation.plot_system_costs
+   ```
+   Plots are saved in `evaluation/plots_advanced/` and `evaluation/plots_system_costs/`.
+
+#### Real-time Evaluation
+
+1. **Start Kafka and services**
+   ```bash
+   docker-compose up -d
    ```
 
 2. **Run specific processor**
@@ -111,20 +137,42 @@ forward-decay-reproducibility/
    python -m quix_app.sliding_window_processor
    ```
 
-3. **Evaluate results**
+3. **Generate plots from real-time data**
    ```bash
-   # Plot experiment results
-   python -m evaluation.plot_results
+   # Performance metrics
+   python -m evaluation.plot_results evaluation/realtime_results.json evaluation/plots_realtime/
 
-   # Analyze system costs
-   python -m evaluation.plot_system_costs
+   # System costs
+   python -m evaluation.plot_system_costs evaluation/realtime_results.json evaluation/plots_system_costs_realtime/
    ```
 
 ## Results
 
-- Real-time evaluation results: `evaluation/realtime_results.json`
-- Plots and visualizations: `evaluation/` directory
-- Generated data streams: `data/` directory
+### Output Files
+
+- **Offline results**: `evaluation/results.json`
+- **Real-time results**: `evaluation/realtime_results.json`
+- **Generated data**: `data/generated_stream.csv`
+
+### Generated Plots
+
+| Plot Type | Offline | Real-time |
+|-----------|---------|-----------|
+| **Performance Metrics** (6 plots) | `evaluation/plots_advanced/` | `evaluation/plots_realtime/` |
+| **System Costs** (3 plots) | `evaluation/plots_system_costs/` | `evaluation/plots_system_costs_realtime/` |
+
+**Performance Metrics Plots:**
+- `relative_error.png` - Single item relative error
+- `average_relative_error.png` - Average relative error over items
+- `topk_accuracy.png` - Top-K accuracy comparison
+- `memory_usage.png` - Approximate memory usage
+- `combined_errors.png` - Combined error comparison
+- `error_boxplot.png` - Error distribution
+
+**System Cost Plots:**
+- `cpu_load_bar.png` - Average update time (CPU load)
+- `query_cost_bar.png` - Query time comparison
+- `memory_space_bar.png` - Space comparison (log scale)
 
 ## Dependencies
 

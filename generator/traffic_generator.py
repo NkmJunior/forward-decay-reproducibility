@@ -56,7 +56,7 @@ if __name__ == "__main__":
         num_items=1000,
         heavy_hitters=10,
         rate=10000,        # 10k packets/s (modif possible)
-        duration=5,
+        duration=30,       # Increased to 30 seconds for meaningful sliding window evaluation
         zipf_alpha=1.2,
     )
 

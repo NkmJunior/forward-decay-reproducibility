@@ -27,6 +27,12 @@ TOP_K = 5
 # Global state
 packet_count = 0
 ground_truth = defaultdict(int)
+# Store timing data for each packet
+timing_data = {
+    "fd_times": [],
+    "bd_times": [],
+    "sw_times": []
+}
 results = {
     "timestamps": [],
     "fd_avg_error": [],
@@ -38,6 +44,9 @@ results = {
     "memory_fd": [],
     "memory_bd": [],
     "memory_sw": [],
+    "fd_time": [],
+    "bd_time": [],
+    "sw_time": [],
 }
 
 # Initialize algorithms
@@ -63,10 +72,21 @@ def process_packet(row):
     # Update ground truth
     ground_truth[item] += 1
 
-    # Update all algorithms
+    # Update all algorithms with timing measurements
+    t0 = time.perf_counter()
     fd.update(item, ts)
+    fd_time = time.perf_counter() - t0
+    timing_data["fd_times"].append(fd_time)
+
+    t0 = time.perf_counter()
     bd.update(item, ts)
+    bd_time = time.perf_counter() - t0
+    timing_data["bd_times"].append(bd_time)
+
+    t0 = time.perf_counter()
     sw.update(item, ts)
+    sw_time = time.perf_counter() - t0
+    timing_data["sw_times"].append(sw_time)
 
     packet_count += 1
 
@@ -122,6 +142,12 @@ def evaluate_performance(ts):
     results["memory_fd"].append(len(fd.decayed_counts))
     results["memory_bd"].append(sum(len(v) for v in bd.timestamps.values()))
     results["memory_sw"].append(sum(len(v) for v in sw.timestamps.values()))
+
+    # Average timing for the last EVAL_EVERY packets
+    import numpy as np
+    results["fd_time"].append(np.mean(timing_data["fd_times"][-EVAL_EVERY:]))
+    results["bd_time"].append(np.mean(timing_data["bd_times"][-EVAL_EVERY:]))
+    results["sw_time"].append(np.mean(timing_data["sw_times"][-EVAL_EVERY:]))
 
     # Print progress
     print(

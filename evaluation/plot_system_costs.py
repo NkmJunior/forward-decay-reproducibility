@@ -10,17 +10,18 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-RESULTS_PATH = "evaluation/results.json"
-OUTPUT_DIR = "evaluation/plots_system_costs/"
+# Default paths
+DEFAULT_RESULTS_PATH = "evaluation/results.json"
+DEFAULT_OUTPUT_DIR = "evaluation/plots_system_costs/"
 
 
-def ensure_output_dir():
-    if not os.path.exists(OUTPUT_DIR):
-        os.makedirs(OUTPUT_DIR)
+def ensure_output_dir(output_dir):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
 
-def load_results():
-    with open(RESULTS_PATH, "r") as f:
+def load_results(results_path):
+    with open(results_path, "r") as f:
         return json.load(f)
 
 
@@ -28,7 +29,7 @@ def load_results():
 # SYSTEM COST PLOTS (STYLE PAPER)
 # --------------------------------------------------------
 
-def plot_cpu_load(results):
+def plot_cpu_load(results, output_dir):
     """
     Approximate CPU load by update time.
     We take the mean update time over all evaluation steps.
@@ -46,11 +47,11 @@ def plot_cpu_load(results):
     plt.title("Optimized cost of SUM and COUNT queries")
     plt.grid(axis="y")
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "cpu_load_bar.png")
+    plt.savefig(output_dir + "cpu_load_bar.png")
     plt.close()
 
 
-def plot_query_cost(results):
+def plot_query_cost(results, output_dir):
     """
     Query cost: we approximate query time by evaluating the function.
     We'll measure time explicitly for each algo on tracked items.
@@ -100,11 +101,11 @@ def plot_query_cost(results):
     plt.title("Unoptimized cost of SUM and COUNT queries")
     plt.grid(axis="y")
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "query_cost_bar.png")
+    plt.savefig(output_dir + "query_cost_bar.png")
     plt.close()
 
 
-def plot_memory_usage(results):
+def plot_memory_usage(results, output_dir):
     """
     Memory usage from results.json (already saved as counts).
     We take the last sample for each algo.
@@ -123,7 +124,7 @@ def plot_memory_usage(results):
     plt.title("Space comparison for SUM/COUNT models")
     plt.grid(axis="y")
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR + "memory_space_bar.png")
+    plt.savefig(output_dir + "memory_space_bar.png")
     plt.close()
 
 
@@ -131,22 +132,51 @@ def plot_memory_usage(results):
 # MAIN EXEC
 # --------------------------------------------------------
 
-def main():
-    print("Loading results...")
-    results = load_results()
-    ensure_output_dir()
+def main(results_path=None, output_dir=None):
+    """Generate system cost plots from evaluation results.
 
-    print("Plotting CPU load (update cost)...")
-    plot_cpu_load(results)
+    Args:
+        results_path: Path to results JSON file (default: evaluation/results.json)
+        output_dir: Output directory for plots (default: evaluation/plots_system_costs/)
+    """
+    if results_path is None:
+        results_path = DEFAULT_RESULTS_PATH
+    if output_dir is None:
+        output_dir = DEFAULT_OUTPUT_DIR
 
-    print("Plotting SUM/COUNT query cost...")
-    plot_query_cost(results)
+    # Ensure output dir ends with /
+    if not output_dir.endswith('/'):
+        output_dir += '/'
+
+    print(f"Loading results from {results_path}...")
+    results = load_results(results_path)
+    ensure_output_dir(output_dir)
+
+    # Check if timing data is available
+    has_timing_data = "fd_time" in results and "bd_time" in results and "sw_time" in results
+
+    if has_timing_data:
+        print("Plotting CPU load (update cost)...")
+        plot_cpu_load(results, output_dir)
+
+        print("Plotting SUM/COUNT query cost...")
+        plot_query_cost(results, output_dir)
+    else:
+        print("⚠ Timing data not available (skipping CPU load and query cost plots)")
 
     print("Plotting memory usage...")
-    plot_memory_usage(results)
+    plot_memory_usage(results, output_dir)
 
-    print(f"\nSystem-cost plots saved in {OUTPUT_DIR}")
+    print(f"\n✓ System-cost plots saved in {output_dir}")
+    if not has_timing_data:
+        print("  Note: Only memory plot generated (timing data not available in this dataset)")
 
 
 if __name__ == "__main__":
-    main()
+    # Support command-line arguments
+    if len(sys.argv) > 1:
+        results_path = sys.argv[1]
+        output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+        main(results_path, output_dir)
+    else:
+        main()
