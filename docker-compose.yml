@@ -34,7 +34,7 @@ services:
       - kafka
     environment:
       - KAFKA_BROKER_ADDRESS=kafka:29092
-      - PRODUCER_DURATION=30
+      - PRODUCER_DURATION=300
     command: python quix_app/producer.py
     restart: unless-stopped
 

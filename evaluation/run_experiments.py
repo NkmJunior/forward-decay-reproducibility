@@ -17,21 +17,23 @@ OUTPUT_PATH = os.path.join(BASE_DIR, "..", "data", "generated_stream.csv")
 CSV_PATH = OUTPUT_PATH
 
 # ------------------------------------
-# IMPORT ALGORITHMS
+# IMPORT ALGORITHMS & CONFIG
 # ------------------------------------
+from config import ALGORITHM_CONFIG, EXPERIMENT_CONFIG
 from quix_app.utils.ForwardDecay import ForwardDecay
 from quix_app.utils.BackwardDecay import BackwardDecay
 from quix_app.utils.SlidingWindow import SlidingWindow
 
+# Use config values
+LAMBDA = ALGORITHM_CONFIG["lambda"]
+WINDOW_SIZE = ALGORITHM_CONFIG["window_size"]
+ADAPTIVE_T0 = ALGORITHM_CONFIG["adaptive_t0"]
+ERROR_THRESHOLD = ALGORITHM_CONFIG["error_threshold"]
 
-# ----------------------------
-# CONFIG
-# ----------------------------
-LAMBDA = 0.01
-WINDOW_SIZE = 10.0
-EVAL_EVERY = 5000
-TRACK_ITEMS = [1, 2, 3, 4, 5]   # multiple items for average error
-TOP_K = 5
+EVAL_EVERY = EXPERIMENT_CONFIG["eval_every"]
+TRACK_ITEMS = EXPERIMENT_CONFIG["track_items"]
+TOP_K = EXPERIMENT_CONFIG["top_k"]
+CSV_PATH = os.path.join(ROOT_DIR, EXPERIMENT_CONFIG["data_file"])
 
 
 # =========================================================

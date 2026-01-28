@@ -10,19 +10,7 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-# Default paths
-DEFAULT_RESULTS_PATH = "evaluation/results.json"
-DEFAULT_OUTPUT_DIR = "evaluation/plots_system_costs/"
-
-
-def ensure_output_dir(output_dir):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-
-def load_results(results_path):
-    with open(results_path, "r") as f:
-        return json.load(f)
+from evaluation.plot_utils import load_results, ensure_output_dir, save_plot
 
 
 # --------------------------------------------------------

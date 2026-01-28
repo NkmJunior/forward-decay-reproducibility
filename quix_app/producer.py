@@ -3,6 +3,7 @@ import sys
 import os
 import csv
 from quixstreams import Application
+import random
 
 # Add parent directory to path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,15 +60,23 @@ def run_realtime_producer(save_to_csv=None, duration_seconds=None):
             # Generate packet using shared utility
             packet = generate_packet(NUM_ITEMS, ZIPF_ALPHA)
             ts = packet["timestamp"]
+            
+            # --- 核心复刻代码：注入乱序数据 ---
+            # 设定 15% 的概率产生乱序包
+            if random.random() < 0.15:
+                # 让时间戳回退 5 到 15 秒（确保超过你的 WINDOW_SIZE = 10.0）
+                offset = random.uniform(5, 15)
+                ts = ts - offset
+                print(f"[Producer] 注入乱序包: 原始TS={packet['timestamp']:.2f}, 延迟后TS={ts:.2f}")
+            # --------------------------------
+            
             item_id = packet["item_id"]
-            packet_size = packet["packet_size"]
-
+            # ... 构造 message 和发送到 Kafka 的原有代码 ...
             message = {
-                "timestamp": ts,
+                "timestamp": ts, # 使用可能被修改过的 ts
                 "item_id": item_id,
-                "packet_size": packet_size
+                "packet_size": packet["packet_size"]
             }
-
             # 5. Serialize and produce to Kafka
             kafka_msg = topic.serialize(key=str(item_id), value=message)
             producer.produce(

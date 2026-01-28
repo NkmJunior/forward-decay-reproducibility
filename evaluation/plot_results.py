@@ -3,21 +3,17 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Default paths
+from evaluation.plot_utils import load_results, ensure_output_dir, save_plot
+
+
+# Define default results path
 DEFAULT_RESULTS_PATH = "evaluation/results.json"
-DEFAULT_OUTPUT_DIR = "evaluation/plots_advanced/"
 
-
-def ensure_output_dir(output_dir):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-
-def load_results(results_path):
-    with open(results_path, "r") as f:
-        return json.load(f)
-
+# Define default output directory
+DEFAULT_OUTPUT_DIR = "evaluation/plots/"
 
 # ---------------------------------------------------------
 # PLOTTING FUNCTIONS
@@ -32,7 +28,7 @@ def plot_relative_error(results, output_dir):
 
     plt.figure(figsize=(10, 6))
     plt.plot(ts, fd, label="Forward Decay", linewidth=2)
-    plt.plot(ts, bd, label="Backward Decay", linewidth=2)
+    plt.plot(ts, bd, label="Backward Decay", linewidth=2,linestyle='--')
     plt.plot(ts, sw, label="Sliding Window", linewidth=2)
     plt.xlabel("Timestamp")
     plt.ylabel("Relative Error")
@@ -52,7 +48,7 @@ def plot_avg_relative_error(results, output_dir):
 
     plt.figure(figsize=(10, 6))
     plt.plot(ts, fd, label="Forward Decay", linewidth=2)
-    plt.plot(ts, bd, label="Backward Decay", linewidth=2)
+    plt.plot(ts, bd, label="Backward Decay", linewidth=2, linestyle='--')
     plt.plot(ts, sw, label="Sliding Window", linewidth=2)
     plt.xlabel("Timestamp")
     plt.ylabel("Average Relative Error")
@@ -110,7 +106,7 @@ def plot_combined_error(results, output_dir):
 
     plt.figure(figsize=(12, 6))
     plt.plot(ts, results["fd_avg_error"], label="FD avg error", linewidth=2)
-    plt.plot(ts, results["bd_avg_error"], label="BD avg error", linewidth=2)
+    plt.plot(ts, results["bd_avg_error"], label="BD avg error", linewidth=2, linestyle='--')
     plt.plot(ts, results["sw_avg_error"], label="SW avg error", linewidth=2)
     plt.xlabel("Timestamp")
     plt.ylabel("Average Error")
@@ -141,7 +137,39 @@ def plot_error_boxplot(results, output_dir):
     plt.savefig(output_dir + "error_boxplot.png")
     plt.close()
 
+def plot_processing_latency(results, output_dir):
+    """绘制单条消息的处理延迟（越低越好）。"""
+    ts = results["timestamps"]
+    fd = results["fd_time"]
+    bd = results["bd_time"]
+    sw = results["sw_time"]
 
+    plt.figure(figsize=(10, 6))
+    plt.plot(ts, fd, label="Forward Decay", linewidth=2)
+    plt.plot(ts, bd, label="Backward Decay", linewidth=2)
+    plt.plot(ts, sw, label="Sliding Window", linewidth=2)
+    plt.yscale('log')  # 使用对数轴更清晰对比性能级差
+    plt.xlabel("Timestamp")
+    plt.ylabel("Avg Update Time (seconds)")
+    plt.title("Update Cost per Packet")
+    plt.legend()
+    plt.grid(True, which="both", ls="-")
+    save_plot(plt, "processing_latency.png", output_dir)
+
+def plot_throughput(results, output_dir):
+    """绘制系统每秒处理的包数（吞吐量稳定性）。"""
+    ts = results["timestamps"]
+    eps = results["eps"]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(ts, eps, color='purple', linewidth=2, label="Throughput (EPS)")
+    plt.xlabel("Timestamp")
+    plt.ylabel("Events Per Second")
+    plt.title("System Throughput Over Time")
+    plt.grid(True)
+    plt.legend()
+    save_plot(plt, "throughput_eps.png", output_dir)
+    
 # ---------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------
@@ -150,7 +178,7 @@ def main(results_path=None, output_dir=None):
 
     Args:
         results_path: Path to results JSON file (default: evaluation/results.json)
-        output_dir: Output directory for plots (default: evaluation/plots_advanced/)
+        output_dir: Output directory for plots (default: evaluation/plots/)
     """
     if results_path is None:
         results_path = DEFAULT_RESULTS_PATH
@@ -182,6 +210,12 @@ def main(results_path=None, output_dir=None):
 
     print("Plotting boxplot...")
     plot_error_boxplot(results, output_dir)
+    
+    plot_processing_latency(results, output_dir) 
+    print("Plotting processing latency...")
+    
+    plot_throughput(results, output_dir)        
+    print("Plotting throughput...")
 
     print(f"\n✓ Plots saved in {output_dir}")
 

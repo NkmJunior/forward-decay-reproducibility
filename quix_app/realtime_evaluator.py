@@ -5,6 +5,7 @@ import time
 import json
 import signal
 import atexit
+import math
 from collections import defaultdict
 from quixstreams import Application
 
@@ -19,14 +20,21 @@ from quix_app.utils.SlidingWindow import SlidingWindow
 
 # Configuration
 LAMBDA = 0.01
-WINDOW_SIZE = 10.0
+WINDOW_SIZE = 30.0
 EVAL_EVERY = 5000  # Evaluate every N packets
 TRACK_ITEMS = [1, 2, 3, 4, 5]
 TOP_K = 5
 
 # Global state
+L = None  # Landmark
+decayed_ground_truth = defaultdict(float)
+
+# Define packet_count globally
 packet_count = 0
-ground_truth = defaultdict(int)
+
+# Define raw_ground_truth globally
+raw_ground_truth = defaultdict(int)
+
 # Store timing data for each packet
 timing_data = {
     "fd_times": [],
@@ -47,12 +55,14 @@ results = {
     "fd_time": [],
     "bd_time": [],
     "sw_time": [],
+    "eps": [] 
 }
 
 # Initialize algorithms
 fd = ForwardDecay(lambda_=LAMBDA)
 bd = BackwardDecay(lambda_=LAMBDA)
 sw = SlidingWindow(window_size=WINDOW_SIZE)
+last_eval_wall_time = time.time()
 
 
 def relative_error(est, truth):
@@ -64,13 +74,21 @@ def relative_error(est, truth):
 
 def process_packet(row):
     """Process a single packet and update algorithms."""
-    global packet_count
+    global L, packet_count
 
     ts = row["timestamp"]
     item = row["item_id"]
+    
+    raw_ground_truth[item] += 1
 
-    # Update ground truth
-    ground_truth[item] += 1
+
+    # Initialize landmark
+    if L is None:
+        L = ts
+
+    # Update decayed ground truth with numerator
+    weight_numerator = math.exp(LAMBDA * (ts - L))
+    decayed_ground_truth[item] += weight_numerator
 
     # Update all algorithms with timing measurements
     t0 = time.perf_counter()
@@ -95,69 +113,116 @@ def process_packet(row):
         evaluate_performance(ts)
 
 
+# def evaluate_performance(ts):
+#     """Evaluate the performance of algorithms."""
+#     results["timestamps"].append(ts)
+
+#     # Calculate denominator for current time
+#     current_denominator = math.exp(LAMBDA * (ts - L))
+
+#     fd_errs = []
+#     bd_errs = []
+#     sw_errs = []
+
+#     for item in TRACK_ITEMS:
+#         # Calculate exact truth value
+#         exact_truth = decayed_ground_truth[item] / current_denominator
+
+#         fd_est = fd.query(item, ts)
+#         bd_est = bd.query(item, ts)
+#         sw_est = sw.query(item, ts)
+
+#         fd_errs.append(relative_error(fd_est, exact_truth))
+#         bd_errs.append(relative_error(bd_est, exact_truth))
+#         sw_errs.append(relative_error(sw_est, exact_truth))
+
+#     # Average errors
+#     fd_avg_err = sum(fd_errs) / len(fd_errs)
+#     bd_avg_err = sum(bd_errs) / len(bd_errs)
+#     sw_avg_err = sum(sw_errs) / len(sw_errs)
+
+#     results["fd_avg_error"].append(fd_avg_err)
+#     results["bd_avg_error"].append(bd_avg_err)
+#     results["sw_avg_error"].append(sw_avg_err)
+
+#     # Top-K accuracy
+#     true_topk = sorted(
+#         raw_ground_truth.items(), key=lambda x: x[1], reverse=True
+#     )[:TOP_K]
+#     true_items = set([x[0] for x in true_topk])
+
+#     fd_top = set([x[0] for x in fd.top_k(TOP_K, ts)])
+#     bd_top = set([x[0] for x in bd.top_k(TOP_K, ts)])
+#     sw_top = set([x[0] for x in sw.top_k(TOP_K, ts)])
+
+#     results["topk_accuracy_fd"].append(len(fd_top & true_items) / TOP_K)
+#     results["topk_accuracy_bd"].append(len(bd_top & true_items) / TOP_K)
+#     results["topk_accuracy_sw"].append(len(sw_top & true_items) / TOP_K)
+
+#     # Memory usage
+#     results["memory_fd"].append(len(fd.decayed_counts))
+#     results["memory_bd"].append(sum(len(v) for v in bd.timestamps.values()))
+#     results["memory_sw"].append(sum(len(v) for v in sw.timestamps.values()))
+
+#     # Average timing for the last EVAL_EVERY packets
+#     import numpy as np
+#     results["fd_time"].append(np.mean(timing_data["fd_times"][-EVAL_EVERY:]))
+#     results["bd_time"].append(np.mean(timing_data["bd_times"][-EVAL_EVERY:]))
+#     results["sw_time"].append(np.mean(timing_data["sw_times"][-EVAL_EVERY:]))
+
+#     # Print progress
+#     print(
+#         f"[{packet_count}] FD: {fd_avg_err:.4f}, "
+#         f"BD: {bd_avg_err:.4f}, "
+#         f"SW: {sw_avg_err:.4f} | "
+#         f"TopK: FD={results['topk_accuracy_fd'][-1]:.2f}, "
+#         f"BD={results['topk_accuracy_bd'][-1]:.2f}, "
+#         f"SW={results['topk_accuracy_sw'][-1]:.2f}"
+#     )
 def evaluate_performance(ts):
-    """Evaluate algorithm performance at current timestamp."""
+    """评估性能并计算 EPS。"""
+    global last_eval_wall_time
+    now = time.time()
     results["timestamps"].append(ts)
 
-    # Calculate errors for tracked items
-    fd_errs = []
-    bd_errs = []
-    sw_errs = []
+    # 计算吞吐量 (EPS)
+    duration = now - last_eval_wall_time
+    eps = EVAL_EVERY / duration if duration > 0 else 0
+    results["eps"].append(eps)
+    last_eval_wall_time = now
+
+    # 1. 计算误差 (逻辑保持之前的精确真值对比)
+    current_denominator = math.exp(LAMBDA * (ts - L))
+    fd_errs, bd_errs, sw_errs = [], [], []
 
     for item in TRACK_ITEMS:
-        truth = ground_truth[item]
+        exact_truth = decayed_ground_truth[item] / current_denominator
+        fd_errs.append(relative_error(fd.query(item, ts), exact_truth))
+        bd_errs.append(relative_error(bd.query(item, ts), exact_truth))
+        sw_errs.append(relative_error(sw.query(item, ts), exact_truth))
 
-        fd_est = fd.query(item, ts)
-        bd_est = bd.query(item, ts)
-        sw_est = sw.query(item, ts)
+    results["fd_avg_error"].append(sum(fd_errs) / len(fd_errs))
+    results["bd_avg_error"].append(sum(bd_errs) / len(bd_errs))
+    results["sw_avg_error"].append(sum(sw_errs) / len(sw_errs))
 
-        fd_errs.append(relative_error(fd_est, truth))
-        bd_errs.append(relative_error(bd_est, truth))
-        sw_errs.append(relative_error(sw_est, truth))
-
-    # Average errors
-    fd_avg_err = sum(fd_errs) / len(fd_errs)
-    bd_avg_err = sum(bd_errs) / len(bd_errs)
-    sw_avg_err = sum(sw_errs) / len(sw_errs)
-
-    results["fd_avg_error"].append(fd_avg_err)
-    results["bd_avg_error"].append(bd_avg_err)
-    results["sw_avg_error"].append(sw_avg_err)
-
-    # Top-K accuracy
-    true_topk = sorted(
-        ground_truth.items(), key=lambda x: x[1], reverse=True
-    )[:TOP_K]
+    # 2. Top-K 准确率 (基于 raw_ground_truth)
+    true_topk = sorted(raw_ground_truth.items(), key=lambda x: x[1], reverse=True)[:TOP_K]
     true_items = set([x[0] for x in true_topk])
+    results["topk_accuracy_fd"].append(len(set([x[0] for x in fd.top_k(TOP_K, ts)]) & true_items) / TOP_K)
+    results["topk_accuracy_bd"].append(len(set([x[0] for x in bd.top_k(TOP_K, ts)]) & true_items) / TOP_K)
+    results["topk_accuracy_sw"].append(len(set([x[0] for x in sw.top_k(TOP_K, ts)]) & true_items) / TOP_K)
 
-    fd_top = set([x[0] for x in fd.top_k(TOP_K, ts)])
-    bd_top = set([x[0] for x in bd.top_k(TOP_K, ts)])
-    sw_top = set([x[0] for x in sw.top_k(TOP_K, ts)])
-
-    results["topk_accuracy_fd"].append(len(fd_top & true_items) / TOP_K)
-    results["topk_accuracy_bd"].append(len(bd_top & true_items) / TOP_K)
-    results["topk_accuracy_sw"].append(len(sw_top & true_items) / TOP_K)
-
-    # Memory usage
+    # 3. 内存与时间 (逻辑不变)
     results["memory_fd"].append(len(fd.decayed_counts))
     results["memory_bd"].append(sum(len(v) for v in bd.timestamps.values()))
     results["memory_sw"].append(sum(len(v) for v in sw.timestamps.values()))
-
-    # Average timing for the last EVAL_EVERY packets
+    
     import numpy as np
     results["fd_time"].append(np.mean(timing_data["fd_times"][-EVAL_EVERY:]))
     results["bd_time"].append(np.mean(timing_data["bd_times"][-EVAL_EVERY:]))
     results["sw_time"].append(np.mean(timing_data["sw_times"][-EVAL_EVERY:]))
 
-    # Print progress
-    print(
-        f"[{packet_count}] FD: {fd_avg_err:.4f}, "
-        f"BD: {bd_avg_err:.4f}, "
-        f"SW: {sw_avg_err:.4f} | "
-        f"TopK: FD={results['topk_accuracy_fd'][-1]:.2f}, "
-        f"BD={results['topk_accuracy_bd'][-1]:.2f}, "
-        f"SW={results['topk_accuracy_sw'][-1]:.2f}"
-    )
+    print(f"[{packet_count}] EPS: {eps:.2f} | FD Err: {results['fd_avg_error'][-1]:.4f} | Memory FD: {results['memory_fd'][-1]}")
 
 
 def save_results(output_file):

@@ -40,7 +40,7 @@ class ForwardDecay:
         self._ensure_t0(timestamp)
         
         # Compute decayed contribution: d = exp(-λ * (t - t0))
-        d = math.exp(-self.lambda_ * (timestamp - self.t0))
+        d = math.exp(self.lambda_ * (timestamp - self.t0))
         
         # Add to storage
         self.decayed_counts[item_id] += d
@@ -64,7 +64,7 @@ class ForwardDecay:
         if self.t0 is None:
             return 0.0
 
-        multiplier = math.exp(self.lambda_ * (current_time - self.t0))
+        multiplier = math.exp(-self.lambda_ * (current_time - self.t0))
         return self.decayed_counts[item_id] * multiplier
 
     def total_frequency(self, current_time):
